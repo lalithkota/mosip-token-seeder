@@ -21,4 +21,5 @@ class AuthTokenHttpRequest(BaseModel):
                 '%Y-%m-%dT%H:%M:%S.%fZ'
             )
         except:
-            raise MOSIPTokenSeederException('ATS-REQ-102','requesttime is not in valid format')
+            # raise MOSIPTokenSeederException('ATS-REQ-102','requesttime is not in valid format')
+            return datetime.utcnow()

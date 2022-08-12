@@ -1,23 +1,28 @@
 import json
 from typing import Optional
-from fastapi import File, Form, Request, UploadFile
+from fastapi import File, Form, Request, UploadFile, Response
 from pydantic import Json
 
 from mosip_token_seeder.repository import db_tools
 
 from .service import AuthTokenService
 from .exception import MOSIPTokenSeederException
-from .model import AuthTokenHttpRequest, AuthTokenCsvHttpRequest, BaseHttpResponse, AuthTokenODKHttpRequest
+from .model import AuthTokenRequest, AuthTokenHttpRequest, AuthTokenCsvHttpRequest, BaseHttpResponse, AuthTokenODKHttpRequest
 
 class AuthTokenApi:
-    def __init__(self, app, config, logger, request_id_queue):
+    def __init__(self, app, config, logger, request_id_queue, authenticator=None):
+        self.config = config
+        self.logger = logger
         self.authtoken_service = AuthTokenService(config, logger, request_id_queue)
+        self.authenticator = authenticator
 
         @app.post(config.root.api_path_prefix + "authtoken/json", response_model=BaseHttpResponse, responses={422:{'model': BaseHttpResponse}})
         async def authtoken_json(request : AuthTokenHttpRequest = None):
             if not request:
                 raise MOSIPTokenSeederException('ATS-REQ-102', 'mission request body')
             ##call service to save the details.
+            if request.request.deliverytype=='sync':
+                return Response(self.returnAuthTokenSync(request.request), media_type="application/json")
             request_identifier = self.authtoken_service.save_authtoken_json(request.request)
             return BaseHttpResponse(response={
                 'request_identifier': request_identifier
@@ -45,3 +50,21 @@ class AuthTokenApi:
             return BaseHttpResponse(response={
                 'request_identifier': request_identifier
             })
+    
+    def returnAuthTokenSync(self, request : AuthTokenRequest):
+        if not self.authenticator:
+            return BaseHttpResponse(response={
+                'message': 'authenticator not found'
+            })
+        language = request.lang
+        if not request.lang:
+            language = self.config.root.default_lang_code
+        valid_authdata, error_code = self.authtoken_service.mapping_service.validate_auth_data(
+            request.authdata[0],
+            request.mapping,
+            language
+        )
+        if not valid_authdata:
+            raise MOSIPTokenSeederException(error_code, '')
+        else:
+            return self.authenticator.do_auth(json.loads(valid_authdata.json()))

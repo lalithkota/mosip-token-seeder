@@ -5,17 +5,19 @@ from ..exception import MOSIPTokenSeederException
 from . import MapperFields
 
 supported_output_types = ['json','csv']
-supported_delivery_types = ['download']
+supported_delivery_types = ['download','sync']
 
 class AuthTokenBaseRequest(BaseModel):
     print("AuthTokenBaseRequest called")
-    output: str
     deliverytype: str
+    output: str
     mapping: MapperFields = MapperFields()
     lang: Optional[str]
 
     @validator('output', pre=True)
-    def output_valid(cls, value):
+    def output_valid(cls, value, values):
+        if values['deliverytype']=='sync':
+            return value
         if not value:
             raise MOSIPTokenSeederException('ATS-REQ-102','output type is not mentioned')
         if value not in supported_output_types:

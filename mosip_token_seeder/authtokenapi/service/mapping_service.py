@@ -27,50 +27,29 @@ class MappingService:
 
         name_arr = []
         for name_var in mapping.name:
-            if name_var not in authdata:
-                return None, 'ATS-REQ-010'
-            if len(authdata[name_var]) == 0:
-                return None, 'ATS-REQ-003'
-            name_arr.append(authdata[name_var])
-        final_dict['name'] = [{'language':language,'value': self.config.root.name_delimiter.join(name_arr)}]
+            if name_var in authdata and len(authdata[name_var]) != 0:
+                name_arr.append(authdata[name_var])
+        if name_arr:
+            final_dict['name'] = [{'language':language,'value': self.config.root.name_delimiter.join(name_arr)}]
 
-        if mapping.gender not in authdata:
-            return None, 'ATS-REQ-011'
-        if len(authdata[mapping.gender]) == 0:
-            return None, 'ATS-REQ-004'
-        # if len(authdata[mapping.gender]) > 256:
-        #     return None, 'ATS-REQ-003'
-        # if authdata[mapping.gender].lower() not in ['male','female','others']:
-        #     return None, 'ATS-REQ-005'
-        final_dict['gender'] = [{'language':language,'value': authdata[mapping.gender]}]
+        if mapping.gender in authdata and len(authdata[mapping.gender]) != 0:
+            final_dict['gender'] = [{'language':language,'value': authdata[mapping.gender]}]
 
-        if mapping.dob not in authdata:
-            return None, 'ATS-REQ-012'
-        if len(authdata[mapping.dob]) == 0:
-            return False, 'ATS-REQ-006'
-        # try:
-        #     if bool(datetime.strptime(authdata[mapping.dob], '%Y/%m/%d')) == False:
-        #         return None, 'ATS-REQ-007'
-        # except ValueError:
-        #     return None, 'ATS-REQ-007'
-        final_dict['dob'] = authdata[mapping.dob]
+        if mapping.dob in authdata and len(authdata[mapping.dob]) != 0:
+            final_dict['dob'] = authdata[mapping.dob]
         
-        if mapping.phoneNumber not in authdata:
-            return None, 'ATS-REQ-013'
-        final_dict['phoneNumber'] = authdata[mapping.phoneNumber]
+        if mapping.phoneNumber in authdata:
+            final_dict['phoneNumber'] = authdata[mapping.phoneNumber]
 
-        if mapping.emailId not in authdata:
-            return None, 'ATS-REQ-014'
-        final_dict['emailId'] = authdata[mapping.emailId]
+        if mapping.emailId in authdata:
+            final_dict['emailId'] = authdata[mapping.emailId]
 
         addr_arr = []
         for addr in mapping.fullAddress:
-            if addr not in authdata:
-                return None, 'ATS-REQ-015'
-            if len(authdata[addr]) == 0:
-                return False, 'ATS-REQ-008'
-            addr_arr.append(authdata[addr])
-        final_dict['fullAddress'] = [{'language':language,'value': self.config.root.full_address_delimiter.join(addr_arr)}]
+            if addr in authdata and len(authdata[addr]) != 0:
+                addr_arr.append(authdata[addr])
+        if addr_arr:
+            final_dict['fullAddress'] = [{'language':language,'value': self.config.root.full_address_delimiter.join(addr_arr)}]
 
         return AuthTokenBaseModel(**final_dict),""
 
