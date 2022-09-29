@@ -100,7 +100,9 @@ class AuthTokenService:
                 csv_header = csv_line
                 continue
 
-            authdata = {column_name: csv_line[i]
+            len_csv_line = len(csv_line)
+
+            authdata = {column_name: csv_line[i] if i < len_csv_line else None
                         for i, column_name in enumerate(csv_header)}
 
             line_no += 1
