@@ -69,7 +69,7 @@ class MappingService:
             #         return None, 'ATS-REQ-007', 'not a valid date format for date of birth'
             # except ValueError:
             #     return None, 'ATS-REQ-007', 'not a valid date format for date of birth'
-            final_dict['dob'] = authdata_dob
+            final_dict['dob'] = self.parse_dob_in_accepted_format(authdata_dob)
             
         authdata_phone = self.nested_json_utils.extract_nested_value(mapping.phoneNumber, authdata)
         if 'phoneNumber' in self.mandatory_validation_auth_fields:
@@ -100,3 +100,12 @@ class MappingService:
             final_dict['fullAddress'] = [{'language':language,'value': authdata_addr}]
 
         return AuthTokenBaseModel(**final_dict),'', ''
+
+    def parse_dob_in_accepted_format(self, dob : str) -> str:
+        try:
+            return datetime.strptime(dob,'%Y/%m/%d').date().strftime('%Y/%m/%d')
+        except:
+            try:
+                return datetime.strptime(dob,'%Y-%m-%d').date().strftime('%Y/%m/%d')
+            except:
+                return dob

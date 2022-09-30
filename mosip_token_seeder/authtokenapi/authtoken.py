@@ -71,7 +71,7 @@ class AuthTokenApi:
                 if 'authToken' in response['response']:
                     response['response'].pop('authToken')
             if 'errors' in response and response['errors']:
-                errors = [{'errorCode': err['errorCode'], 'errorMessage': err['errorMessage']+'. '+err['actionMessage']} for err in response['errors']]
+                errors = [{'errorCode': err['errorCode'], 'errorMessage': err['errorMessage']+'. ' + (err['actionMessage'] if 'actionMessage' in err else '')} for err in response['errors']]
                 return BaseHttpResponse(errors=errors,response=response['response'])
             else:
                 return BaseHttpResponse(response=response['response'])

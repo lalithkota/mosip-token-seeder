@@ -1,4 +1,4 @@
-import http
+import requests
 import json
 
 from mosip_token_seeder.authtokenapi.exception.mosip_token_seeder_exception import MOSIPTokenSeederException, MOSIPTokenSeederNoException
@@ -26,21 +26,19 @@ class ODKPullService:
             "email": config.email,
             "password": config.password
         }
-        auth_url = 'https://{domain}/{version}/sessions'
+        auth_url = '{domain}/{version}/sessions'
         domain = config.baseurl
         version = config.version if config.version is not None and len(
             config.version) else 'v1'
 
-        connection = http.client.HTTPSConnection(domain)
         headers = {'Content-type': 'application/json'}
-        connection.request(method='POST', url=auth_url.format(
-            domain=domain, version=version), body=json.dumps(credentials), headers=headers)
-        response = connection.getresponse()
-        response_json_string = response.read().decode()
+        response = requests.post(auth_url.format(
+            domain=domain, version=version), json=credentials, headers=headers)
+        response_json_string = response.text
         auth_data = json.loads(response_json_string)
         token = auth_data['token']
         if config.odataurl is not None and len(config.odataurl):
-            odata_url = config.odataurl + "/Submissions"
+            odata_url = config.odataurl
         else:
             if config.projectid is None or not len(config.projectid):
                 raise MOSIPTokenSeederException(
@@ -50,21 +48,18 @@ class ODKPullService:
                 raise MOSIPTokenSeederException(
                     'ATS-REQ-22', 'no odk form id provided')
 
-        service_url = 'https://{domain}/{version}/projects/{projectid}/forms/{formid}.svc/Submissions'
-        service_url = service_url.format(domain=domain, version=version,
-                           projectid=config.projectid, formid=config.formid)
-        odata_url = service_url
+            service_url = '{domain}/{version}/projects/{projectid}/forms/{formid}.svc/Submissions'
+            service_url = service_url.format(domain=domain, version=version,
+                            projectid=config.projectid, formid=config.formid)
+            odata_url = service_url
         if config.startdate is not None and len(config.startdate) and config.enddate is not None and len(config.enddate):
-            filter = '?$filter=__system/submissionDate%20gt%20' + config.startdate + \
+            filter = '?$filter=__system/submissionDate%20ge%20' + config.startdate + \
                 '%20and%20__system/submissionDate%20lt%20' + config.enddate
             odata_url = odata_url + filter
-
-        
         
         auth_header = {'Authorization': 'Bearer ' + token}
-        connection.request(method="GET", url=odata_url, headers=auth_header)
-        response = connection.getresponse()
-        response_json_string = response.read().decode()
+        response = requests.get(odata_url, headers=auth_header)
+        response_json_string = response.text
         submissions = json.loads(response_json_string)
         if 'value' in submissions:
             if submissions['value'] is None  or  len(submissions['value']) == 0 :
