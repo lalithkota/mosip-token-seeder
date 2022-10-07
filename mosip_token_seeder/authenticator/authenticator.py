@@ -85,9 +85,25 @@ class MOSIPAuthenticator:
                 demographics = demographic_data
             )
             
-            self.auth_request.request, self.auth_request.requestSessionKey, self.auth_request.requestHMAC = \
-                    self.crypto_util.encrypt_auth_data(request.json())
+            import requests, json
+            otp_request = self.auth_request.dict()
+            otp_request.pop('request')
+            otp_request.pop('requestSessionKey')
+            otp_request.pop('requestHMAC')
+            otp_request['otpChannel']=['email']
+            otp_request['id']='mosip.identity.otp'
+            full_request_json = json.dumps(otp_request)
 
+            signature_header = {'Signature': self.crypto_util.sign_auth_request_data(full_request_json)}
+            auth_url_backup = str(self.auth_rest_util.auth_server_url)
+            self.auth_rest_util.auth_server_url = '/'.join([path if i!=len(auth_url_backup.split('/'))-1 else 'otp' for i, path in enumerate(auth_url_backup.split('/'))])
+            path_params = self.partner_misp_lk + '/' + self.partner_id + '/' + self.partner_apikey
+            self.logger.info(self.auth_rest_util.post_request(path_params=path_params, data=full_request_json, additional_headers=signature_header).text)
+            self.auth_rest_util.auth_server_url = auth_url_backup
+
+            self.auth_request.request, self.auth_request.requestSessionKey, self.auth_request.requestHMAC = \
+                    self.crypto_util.encrypt_auth_data(json.dumps({"otp":input('Enter the otp received: '), "timestamp": timestamp_str }))
+            self.auth_request.id = 'mosip.identity.kyc'
             full_request_json = self.auth_request.json()
 
             signature_header = {'Signature': self.crypto_util.sign_auth_request_data(full_request_json)}
