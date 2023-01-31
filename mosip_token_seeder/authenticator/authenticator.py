@@ -51,6 +51,8 @@ class MOSIPAuthenticator:
             requestHMAC = '',
         )
 
+        self.do_auth({})
+
     @staticmethod
     def _init_logger(filename):
         logger = logging.getLogger()
@@ -65,56 +67,46 @@ class MOSIPAuthenticator:
         return logger
     
     def do_auth(self, auth_req_data : dict):
-        vid = auth_req_data.pop('vid')
+        timestamp = datetime.utcnow()
+        timestamp_str = timestamp.strftime(self.timestamp_format) + timestamp.strftime('.%f')[0:4] + 'Z'
         
-        self.logger.info('Received Auth Request.')
-        try:
-            demographic_data = DemographicsModel(**auth_req_data)
-            timestamp = datetime.utcnow()
-            timestamp_str = timestamp.strftime(self.timestamp_format) + timestamp.strftime('.%f')[0:4] + 'Z'
+        self.auth_request.individualId = input("Enter VID: ")
+        self.auth_request.transactionID = ''.join([secrets.choice(string.digits) for _ in range(10)])
+        self.auth_request.requestTime = timestamp_str
 
-            self.auth_request.requestTime = timestamp_str
-            self.auth_request.transactionID = ''.join([secrets.choice(string.digits) for _ in range(10)])
-            self.auth_request.individualId = vid
+        import json
+        otp_request = self.auth_request.dict()
+        otp_request.pop('request')
+        otp_request.pop('requestSessionKey')
+        otp_request.pop('requestHMAC')
+        otp_request['otpChannel']=['email']
+        otp_request['id']='mosip.identity.otp'
+        full_request_json = json.dumps(otp_request)
 
-            self.auth_request.requestedAuth.demo = True
-            
-            request = MOSIPEncryptAuthRequest(
-                timestamp = timestamp_str,
-                biometrics = [],
-                demographics = demographic_data
-            )
-            
-            import requests, json
-            otp_request = self.auth_request.dict()
-            otp_request.pop('request')
-            otp_request.pop('requestSessionKey')
-            otp_request.pop('requestHMAC')
-            otp_request['otpChannel']=['email']
-            otp_request['id']='mosip.identity.otp'
-            full_request_json = json.dumps(otp_request)
-
-            signature_header = {'Signature': self.crypto_util.sign_auth_request_data(full_request_json)}
-            auth_url_backup = str(self.auth_rest_util.auth_server_url)
-            self.auth_rest_util.auth_server_url = '/'.join([path if i!=len(auth_url_backup.split('/'))-1 else 'otp' for i, path in enumerate(auth_url_backup.split('/'))])
-            path_params = self.partner_misp_lk + '/' + self.partner_id + '/' + self.partner_apikey
-            self.logger.info(self.auth_rest_util.post_request(path_params=path_params, data=full_request_json, additional_headers=signature_header).text)
-            self.auth_rest_util.auth_server_url = auth_url_backup
-
-            self.auth_request.request, self.auth_request.requestSessionKey, self.auth_request.requestHMAC = \
-                    self.crypto_util.encrypt_auth_data(json.dumps({"otp":input('Enter the otp received: '), "timestamp": timestamp_str }))
-            self.auth_request.id = 'mosip.identity.kyc'
-            full_request_json = self.auth_request.json()
-
-            signature_header = {'Signature': self.crypto_util.sign_auth_request_data(full_request_json)}
-
-            path_params = self.partner_misp_lk + '/' + self.partner_id + '/' + self.partner_apikey
-            response = self.auth_rest_util.post_request(path_params=path_params, data=full_request_json, additional_headers=signature_header)
-            self.logger.info('Auth Request Processed Completed.')
-            
-            return response.text
-        except:
-            exp = traceback.format_exc()
-            self.logger.error('Error Processing Auth Request. Error Message: {}'.format(exp))
-            raise AuthenticatorException(Errors.AUT_BAS_001.name, Errors.AUT_BAS_001.value)
+        signature_header = {'Signature': self.crypto_util.sign_auth_request_data(full_request_json)}
+        auth_url_backup = self.auth_rest_util.auth_server_url
+        self.auth_rest_util.auth_server_url = '/'.join([path if i!=len(auth_url_backup.split('/'))-1 else 'otp' for i, path in enumerate(auth_url_backup.split('/'))])
+        path_params = self.partner_misp_lk + '/' + self.partner_id + '/' + self.partner_apikey
+        self.logger.info("OTP Request - %s", full_request_json)
+        self.logger.info("OTP Response - %s", self.auth_rest_util.post_request(path_params=path_params, data=full_request_json, additional_headers=signature_header).text)
         
+        self.auth_rest_util.auth_server_url = '/'.join([path if i!=len(auth_url_backup.split('/'))-1 else 'kyc' for i, path in enumerate(auth_url_backup.split('/'))])
+
+        otp = input('Enter the otp received: ')
+
+        self.auth_request.request, self.auth_request.requestSessionKey, self.auth_request.requestHMAC = \
+            self.crypto_util.encrypt_auth_data(json.dumps({"otp": otp, "timestamp": timestamp_str }))
+        self.auth_request.id = 'mosip.identity.kyc'
+        full_request_json = self.auth_request.json()
+
+        signature_header = {'Signature': self.crypto_util.sign_auth_request_data(full_request_json)}
+
+        path_params = self.partner_misp_lk + '/' + self.partner_id + '/' + self.partner_apikey
+        response = self.auth_rest_util.post_request(path_params=path_params, data=full_request_json, additional_headers=signature_header)
+        self.logger.info('KYC Auth Request: %s', full_request_json)
+        self.logger.info('KYC Auth Response: %s', response.text)
+        self.logger.info('Auth Request Processed Completed.')
+
+        
+            
+        return response.text
